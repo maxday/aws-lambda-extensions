@@ -13,5 +13,5 @@ buildAndDeployExtensionLayer:
 	cd bin && zip -r extension.zip extensions
 
 	aws lambda publish-layer-version \
-		--layer-name "go-example-telemetry-api-extension-layer" \
+		--layer-name "ivan-go-example-telemetry-api-extension-layer" \
 		--zip-file "fileb://bin/extension.zip"
