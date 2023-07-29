@@ -69,22 +69,38 @@ func (s *TelemetryApiListener) Start() (string, error) {
 // receive extension logs. Otherwise, logging here will cause Telemetry API to send new logs for
 // the printed lines which may create an infinite loop.
 func (s *TelemetryApiListener) http_handler(w http.ResponseWriter, r *http.Request) {
+
+	w.WriteHeader(200)
+
+	var requestStart = time.Now()
+	var ioReadTimeStart time.Time
+	var jsonUnmarshalTimeStart time.Time
+	var appendToQueueTimeStart time.Time
+
+	ioReadTimeStart = time.Now()
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		l.Error("[listener:http_handler] Error reading body:", err)
 		return
 	}
+	l.Infof("[time_taken] io_read_all: %v, %v bytes", time.Since(ioReadTimeStart), len(body))
 
+	jsonUnmarshalTimeStart = time.Now()
 	// Parse and put the log messages into the queue
 	var slice []interface{}
 	_ = json.Unmarshal(body, &slice)
+	l.Infof("[time_taken] json_unmarshal: %v, %v items", time.Since(jsonUnmarshalTimeStart), len(slice))
 
+	appendToQueueTimeStart = time.Now()
 	for _, el := range slice {
 		s.LogEventsQueue.Put(el)
 	}
+	l.Infof("[time_taken] append_to_queue: %v, %v items", time.Since(appendToQueueTimeStart), len(slice))
 
 	l.Info("[listener:http_handler] logEvents received:", len(slice), " LogEventsQueue length:", s.LogEventsQueue.Len())
 	slice = nil
+
+	l.Infof("[time_taken] Time taken to send HTTP OK: %v", time.Since(requestStart))
 }
 
 // Terminates the HTTP server listening for logs
