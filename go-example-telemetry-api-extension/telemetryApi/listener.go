@@ -5,14 +5,13 @@ package telemetryApi
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-collections/go-datastructures/queue"
+	"github.com/valyala/fasthttp"
 )
 
 const defaultListenerPort = "4323"
@@ -20,14 +19,14 @@ const initialQueueSize = 5
 
 // Used to listen to the Telemetry API
 type TelemetryApiListener struct {
-	httpServer *http.Server
+	fasthttpServer *fasthttp.Server
 	// LogEventsQueue is a synchronous queue and is used to put the received log events to be dispatched later
 	LogEventsQueue *queue.Queue
 }
 
 func NewTelemetryApiListener() *TelemetryApiListener {
 	return &TelemetryApiListener{
-		httpServer:     nil,
+		fasthttpServer: nil,
 		LogEventsQueue: queue.New(initialQueueSize),
 	}
 }
@@ -48,11 +47,11 @@ func listenOnAddress() string {
 func (s *TelemetryApiListener) Start() (string, error) {
 	address := listenOnAddress()
 	l.Info("[listener:Start] Starting on address", address)
-	s.httpServer = &http.Server{Addr: address}
-	http.HandleFunc("/", s.http_handler)
+	s.fasthttpServer = &fasthttp.Server{
+		Handler: s.http_handler,
+	}
 	go func() {
-		err := s.httpServer.ListenAndServe()
-		if err != http.ErrServerClosed {
+		if err := s.fasthttpServer.ListenAndServe(address); err != nil {
 			l.Error("[listener:goroutine] Unexpected stop on Http Server:", err)
 			s.Shutdown()
 		} else {
@@ -68,34 +67,23 @@ func (s *TelemetryApiListener) Start() (string, error) {
 // Logging or printing besides the error cases below is not recommended if you have subscribed to
 // receive extension logs. Otherwise, logging here will cause Telemetry API to send new logs for
 // the printed lines which may create an infinite loop.
-func (s *TelemetryApiListener) http_handler(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		l.Error("[listener:http_handler] Error reading body:", err)
-		return
+func (s *TelemetryApiListener) http_handler(ctx *fasthttp.RequestCtx) {
+	body := ctx.PostBody()
+
+	if strings.Contains(string(body), "logsDropped") {
+		l.Info("Dropped: %v", body)
 	}
-
-	// Parse and put the log messages into the queue
-	var slice []interface{}
-	_ = json.Unmarshal(body, &slice)
-
-	for _, el := range slice {
-		s.LogEventsQueue.Put(el)
-	}
-
-	l.Info("[listener:http_handler] logEvents received:", len(slice), " LogEventsQueue length:", s.LogEventsQueue.Len())
-	slice = nil
 }
 
 // Terminates the HTTP server listening for logs
 func (s *TelemetryApiListener) Shutdown() {
-	if s.httpServer != nil {
-		ctx, _ := context.WithTimeout(context.Background(), 1*time.Second)
-		err := s.httpServer.Shutdown(ctx)
+	if s.fasthttpServer != nil {
+		_, _ = context.WithTimeout(context.Background(), 1*time.Second)
+		err := s.fasthttpServer.Shutdown()
 		if err != nil {
 			l.Error("[listener:Shutdown] Failed to shutdown http server gracefully:", err)
 		} else {
-			s.httpServer = nil
+			s.fasthttpServer = nil
 		}
 	}
 }
