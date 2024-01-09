@@ -117,14 +117,14 @@ type SubscribeResponse struct {
 func (c *Client) Subscribe(ctx context.Context, extensionId string, listenerUri string) (*SubscribeResponse, error) {
 	eventTypes := []EventType{
 		Platform,
-		// Function,
-		// Extension,
+		Function,
+		Extension,
 	}
 
 	bufferingConfig := BufferingCfg{
 		MaxItems:  1000,
-		MaxBytes:  256 * 1024,
-		TimeoutMS: 1000,
+		MaxBytes:  1024 * 1024,
+		TimeoutMS: 30000,
 	}
 
 	destination := Destination{

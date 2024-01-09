@@ -71,8 +71,6 @@ func main() {
 	}
 	l.Info("[main] Subscription success")
 
-	dispatcher := telemetryApi.NewDispatcher()
-
 	// Will block until invoke or shutdown event is received or cancelled via the context.
 	for {
 		select {
@@ -88,16 +86,11 @@ func main() {
 				return
 			}
 
-			// Dispatching log events from previous invocations
-			dispatcher.Dispatch(ctx, telemetryListener.LogEventsQueue, false)
-
 			l.Info("[main] Received event")
 
 			if res.EventType == extensionApi.Invoke {
 				handleInvoke(res)
 			} else if res.EventType == extensionApi.Shutdown {
-				// Dispatch all remaining telemetry, handle shutdown
-				dispatcher.Dispatch(ctx, telemetryListener.LogEventsQueue, true)
 				handleShutdown(res)
 				return
 			}

@@ -1,5 +1,10 @@
-console.log('Hello from function initalization');
-
 exports.handler = async (event, context) => {
-    console.log('Hello from function handler', {event});
-}
+  for (let i = 0; i < 5000; i++) {
+    console.log("@".repeat(100));
+  }
+  const response = {
+    statusCode: 200,
+    body: "hello, world",
+  };
+  return response;
+};
