@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-collections/go-datastructures/queue"
@@ -62,6 +63,9 @@ func (s *TelemetryApiListener) Start() (string, error) {
 	return fmt.Sprintf("http://%s/", address), nil
 }
 
+var numRequests = 0
+var numLogsProcessed = 0
+
 // http_handler handles the requests coming from the Telemetry API.
 // Everytime Telemetry API sends log events, this function will read them from the response body
 // and put into a synchronous queue to be dispatched later.
@@ -79,12 +83,14 @@ func (s *TelemetryApiListener) http_handler(w http.ResponseWriter, r *http.Reque
 	var slice []interface{}
 	_ = json.Unmarshal(body, &slice)
 
-	for _, el := range slice {
-		s.LogEventsQueue.Put(el)
-	}
+	numRequests += 1
+	numLogsProcessed += len(slice)
 
-	l.Info("[listener:http_handler] logEvents received:", len(slice), " LogEventsQueue length:", s.LogEventsQueue.Len())
-	slice = nil
+	l.Infof("[benchmark] processed request %v, size %v, currently processed %v logs", numRequests, len(slice), numLogsProcessed)
+
+	if strings.Contains(string(body), "logsDropped") {
+		l.Info("[benchmark] LOG DROPPED!")
+	}
 }
 
 // Terminates the HTTP server listening for logs
